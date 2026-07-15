@@ -1,0 +1,34 @@
+#!/bin/sh
+# gdltak.postinst from https://github.com/snstac/gdltak
+# Copyright Sensors & Signals LLC https://www.snstac.com/
+# SPDX-License-Identifier: Apache-2.0
+set -e
+
+SERVER_HOME=/run/gdltak
+SERVER_USER=gdltak
+SERVER_NAME="CoT to GDL90 Gateway System User"
+SERVER_GROUP=gdltak
+
+# Create system group/user so the service does not run as root.
+if ! getent group "$SERVER_GROUP" >/dev/null; then
+  addgroup --quiet --system "$SERVER_GROUP" 2>/dev/null || true
+fi
+if ! getent passwd "$SERVER_USER" >/dev/null; then
+  adduser --quiet \
+          --system \
+          --ingroup "$SERVER_GROUP" \
+          --no-create-home \
+          --disabled-password \
+          --home "$SERVER_HOME" \
+          --gecos "$SERVER_NAME" \
+          "$SERVER_USER" 2>/dev/null || true
+fi
+
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl daemon-reload || true
+fi
+
+# gdltak.service ships disabled; opt in with:
+#   sudo systemctl enable --now gdltak
+
+exit 0

@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+build/
+dist/
+out/
+*.deb
+*.rpm
+*.apk
+*.tar.gz
+.pytest_cache/
+.ruff_cache/
+.venv/
+.venv-test/
+*.egg-info/
+deb_dist/

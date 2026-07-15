@@ -1,0 +1,4 @@
+include README.md LICENSE src/gdltak/VERSION
+graft src
+global-exclude __pycache__/*
+global-exclude *.py[cod]
