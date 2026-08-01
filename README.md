@@ -61,10 +61,18 @@ so any PyTAK-supported CoT source works, including TAK Server over TLS.
 
 Notes:
 
-- CoT carries geometric altitude (HAE); GDLTAK uses it for both the
-  pressure-altitude field of Traffic Reports and the Ownship Geometric
-  Altitude message. EFBs treat it as advisory traffic, not certified
-  ADS-B In.
+- GDL90 Traffic Reports carry **pressure** altitude, because that is what
+  every other aircraft's transponder reports and what an EFB needs to compute
+  relative altitude. GDLTAK reads it from `<__adsb alt_baro="...">`, which
+  adsbcot publishes from readsb.
+- When a source does not provide pressure altitude — a non-adsbcot feed, or a
+  target reporting `ground` — GDLTAK falls back to CoT's geometric `hae`. That
+  is approximate: geometric and pressure altitude differ with local pressure,
+  routinely by hundreds of feet. Better than dropping the track, but it is a
+  fallback, not the intent.
+- The Ownship Geometric Altitude message uses geometric altitude, which is what
+  that message is for.
+- EFBs treat all of this as advisory traffic, not certified ADS-B In.
 - Tracks with UIDs like `ICAO-A1B2C3` (adsbcot convention) keep their
   real 24-bit ICAO address; other tracks get a stable self-assigned
   address hashed from the UID.
