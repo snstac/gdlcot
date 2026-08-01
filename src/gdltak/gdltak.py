@@ -116,14 +116,37 @@ def parse_cot(data):
     if lat is None or lon is None:
         return None
 
+    # GDL90 Traffic Reports carry PRESSURE altitude, because that is what
+    # every other aircraft's Mode C/S transponder reports and what an EFB needs
+    # to compute relative altitude. The Ownship Geometric Altitude message is
+    # the one that wants geometric.
+    #
+    # CoT's point/@hae is geometric (height above ellipsoid), so using it for a
+    # Traffic Report mixes the two datums. The error is the geometric-minus-
+    # pressure difference, which varies with local pressure and is routinely
+    # hundreds of feet -- enough to make traffic appear at the wrong relative
+    # level, which is the one number the display exists to show.
+    #
+    # adsbcot already publishes the right value: readsb's alt_baro, in feet,
+    # carried through as <__adsb alt_baro="...">. Prefer it, and fall back to
+    # geometric only when a source does not provide it (which is honest but
+    # approximate, and better than dropping the track).
     hae = _float_or_none(point.get("hae"))
-    alt_ft = hae * METERS_TO_FEET if hae is not None else None
+    alt_geom_ft = hae * METERS_TO_FEET if hae is not None else None
 
     course = None
     speed_kt = None
     callsign = None
+    alt_press_ft = None
     detail = event.find("detail")
     if detail is not None:
+        adsb = detail.find("__adsb")
+        if adsb is not None:
+            # readsb reports alt_baro in FEET already, so no conversion. A
+            # ground target reports the string "ground" rather than a number;
+            # _float_or_none returns None for it and the geometric fallback
+            # applies.
+            alt_press_ft = _float_or_none(adsb.get("alt_baro"))
         track = detail.find("track")
         if track is not None:
             course = _float_or_none(track.get("course"))
@@ -140,7 +163,11 @@ def parse_cot(data):
         "cot_type": event.get("type", ""),
         "lat": lat,
         "lon": lon,
-        "alt_ft": alt_ft,
+        # Traffic Reports use pressure altitude; geometric is kept separately
+        # so the Ownship Geometric Altitude message can still use it.
+        "alt_ft": alt_press_ft if alt_press_ft is not None else alt_geom_ft,
+        "alt_press_ft": alt_press_ft,
+        "alt_geom_ft": alt_geom_ft,
         "course": course,
         "speed_kt": speed_kt,
         "callsign": callsign or uid[:8],

@@ -229,3 +229,64 @@ def test_gdl90_sender_broadcast_scheme():
 def test_gdl90_sender_rejects_non_udp():
     with pytest.raises(ValueError):
         gdltak.Gdl90Sender("tcp://127.0.0.1:4000")
+
+
+# --- Pressure vs geometric altitude ---------------------------------------
+#
+# GDL90 Traffic Reports carry PRESSURE altitude; the Ownship Geometric Altitude
+# message carries geometric. CoT's point/@hae is geometric, so using it for
+# traffic mixes datums. adsbcot publishes readsb's alt_baro (already in feet)
+# as <__adsb alt_baro="...">, which is the right source.
+
+# 1524.0 m HAE == 5000 ft geometric. alt_baro says 4800 ft pressure -- a 200 ft
+# disagreement, which is an ordinary geometric-vs-pressure difference and
+# exactly the error this would otherwise put on an EFB.
+ADSB_COT_WITH_BARO = b"""<event version="2.0" uid="ICAO-A1B2C3" type="a-f-A-C-F"
+  time="2026-07-15T00:00:00.000000Z" start="2026-07-15T00:00:00.000000Z"
+  stale="2026-07-15T00:02:00.000000Z" how="m-g">
+  <point lat="37.76" lon="-122.4" hae="1524.0" ce="9999999.0" le="9999999.0"/>
+  <detail>
+    <contact callsign="N123AB"/>
+    <track course="90.0" speed="61.7"/>
+    <__adsb alt_baro="4800" alt_geom="5000" flight="N123AB"/>
+  </detail>
+</event>"""
+
+# readsb reports "ground" rather than a number for a target on the surface.
+ADSB_COT_GROUND = ADSB_COT_WITH_BARO.replace(b'alt_baro="4800"', b'alt_baro="ground"')
+
+
+def test_traffic_uses_pressure_altitude_when_available():
+    """The whole point: alt_baro wins over hae for a Traffic Report."""
+    track = gdltak.parse_cot(ADSB_COT_WITH_BARO)
+    assert track["alt_press_ft"] == pytest.approx(4800.0)
+    assert track["alt_ft"] == pytest.approx(4800.0)
+    # ...and it is NOT the geometric value.
+    assert track["alt_ft"] != pytest.approx(track["alt_geom_ft"])
+
+
+def test_geometric_still_available_for_ownship():
+    """Ownship Geometric Altitude legitimately wants the geometric value."""
+    track = gdltak.parse_cot(ADSB_COT_WITH_BARO)
+    assert track["alt_geom_ft"] == pytest.approx(5000.0, abs=1.0)
+
+
+def test_falls_back_to_geometric_without_adsb_detail():
+    """Non-adsbcot sources have no __adsb element; approximate beats dropping."""
+    track = gdltak.parse_cot(ADSB_COT)
+    assert track["alt_press_ft"] is None
+    assert track["alt_ft"] == pytest.approx(5000.0, abs=1.0)
+
+
+def test_ground_target_falls_back_rather_than_crashing():
+    """readsb emits the string "ground"; it must not become a bogus altitude."""
+    track = gdltak.parse_cot(ADSB_COT_GROUND)
+    assert track["alt_press_ft"] is None
+    assert track["alt_ft"] == pytest.approx(5000.0, abs=1.0)
+
+
+def test_report_encodes_the_pressure_altitude():
+    """End to end: the emitted GDL90 bytes differ from the geometric version."""
+    baro = gdltak.track_to_report(gdltak.parse_cot(ADSB_COT_WITH_BARO))
+    geom = gdltak.track_to_report(gdltak.parse_cot(ADSB_COT))
+    assert baro != geom, "traffic report did not change when alt_baro was supplied"
