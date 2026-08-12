@@ -26,6 +26,7 @@ SPDX-License-Identifier: Apache-2.0
 import asyncio
 import configparser
 import logging
+import math
 import os
 import re
 import socket
@@ -38,7 +39,7 @@ import pytak
 
 from gdltak import gdl90
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 logger = logging.getLogger("gdltak")
 
 DEFAULT_COT_URL = "udp+ro://239.2.3.1:6969"
@@ -72,7 +73,7 @@ def _float_or_none(value):
         value = float(value)
     except (TypeError, ValueError):
         return None
-    if abs(value) >= COT_NULL:
+    if not math.isfinite(value) or abs(value) >= COT_NULL:
         return None
     return value
 
