@@ -69,6 +69,25 @@ def test_parse_cot_null_sentinels_become_none():
     assert gdltak.parse_cot(cot)["alt_ft"] is None
 
 
+@pytest.mark.parametrize("value", [b"nan", b"NaN", b"inf", b"-inf"])
+def test_parse_cot_nonfinite_altitude_becomes_none(value):
+    cot = ADSB_COT.replace(b'hae="1524.0"', b'hae="' + value + b'"')
+    assert gdltak.parse_cot(cot)["alt_ft"] is None
+
+
+@pytest.mark.parametrize("attribute, value", [(b"lat", b"37.76"), (b"lon", b"-122.4")])
+def test_parse_cot_rejects_nonfinite_coordinates(attribute, value):
+    cot = ADSB_COT.replace(attribute + b'="' + value + b'"', attribute + b'="NaN"')
+    assert gdltak.parse_cot(cot) is None
+
+
+def test_parse_cot_nonfinite_motion_becomes_unknown():
+    cot = ADSB_COT.replace(b'course="90.0" speed="61.7"', b'course="inf" speed="nan"')
+    track = gdltak.parse_cot(cot)
+    assert track["course"] is None
+    assert track["speed_kt"] is None
+
+
 def test_parse_cot_rejects_garbage_and_non_events():
     assert gdltak.parse_cot(b"not xml") is None
     assert gdltak.parse_cot(b"<foo/>") is None
