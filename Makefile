@@ -1,4 +1,4 @@
-REPO_NAME ?= gdltak
+REPO_NAME ?= gdlcot
 PY_SRC = src/$(REPO_NAME)
 SHELL := /bin/bash
 .DEFAULT_GOAL := editable

@@ -1,12 +1,12 @@
-# GDLTAK: Display TAK Air Pictures in ForeFlight — CoT to GDL90 Gateway
+# GDLCOT: Display TAK Air Pictures in ForeFlight — CoT to GDL90 Gateway
 
-GDLTAK broadcasts the local **Cursor on Target (CoT)** air picture as
+GDLCOT broadcasts the local **Cursor on Target (CoT)** air picture as
 **GDL90** over UDP, so Electronic Flight Bag (EFB) apps — **ForeFlight**,
 **FlyQ EFB**, **Garmin Pilot** — display the same traffic that TAK sees.
 It is the reverse of [adsbcot](https://github.com/snstac/adsbcot):
 CoT in, GDL90 out.
 
-GDLTAK subscribes to CoT (by default the AryaOS / ATAK **Mesh SA**
+GDLCOT subscribes to CoT (by default the AryaOS / ATAK **Mesh SA**
 multicast group), keeps a table of air tracks, and once a second emits
 GDL90 Heartbeat, Ownship and Traffic Report datagrams the way a stratux
 or GDL 90 receiver would. Any traffic feeding your TAK network — ADS-B via
@@ -16,7 +16,7 @@ in the cockpit.
 ## ForeFlight setup
 
 1. Put the iPad/iPhone on the same Wi-Fi network as the device running
-   GDLTAK (e.g. join the AryaOS hotspot).
+   GDLCOT (e.g. join the AryaOS hotspot).
 2. That's it — ForeFlight auto-detects GDL90 traffic on UDP port 4000 and
    lists it under **More → Devices**. FlyQ and Garmin Pilot behave the same.
 
@@ -25,26 +25,26 @@ in the cockpit.
 On AryaOS / Debian, from the [snstac package repo](https://snstac.github.io/packages):
 
 ```sh
-sudo apt install gdltak
-sudo systemctl enable --now gdltak
+sudo apt install gdlcot
+sudo systemctl enable --now gdlcot
 ```
 
 Or from source:
 
 ```sh
-python3 -m pip install gdltak
+python3 -m pip install gdlcot
 ```
 
 The Debian package installs:
 
-- `/usr/bin/gdltak`
-- `/etc/default/gdltak`
-- `/lib/systemd/system/gdltak.service` (ships disabled; enable as above)
+- `/usr/bin/gdlcot`
+- `/etc/default/gdlcot`
+- `/lib/systemd/system/gdlcot.service` (ships disabled; enable as above)
 
 ## Configuration
 
-PyTAK-style, via `/etc/default/gdltak` (systemd EnvironmentFile), the
-environment, or an INI file with a `[gdltak]` section:
+PyTAK-style, via `/etc/default/gdlcot` (systemd EnvironmentFile), the
+environment, or an INI file with a `[gdlcot]` section:
 
 | Key | Default | Description |
 |---|---|---|
@@ -53,8 +53,8 @@ environment, or an INI file with a `[gdltak]` section:
 | `STALE_SECS` | `60` | Drop tracks not updated within this many seconds. |
 | `UPDATE_HZ` | `1` | GDL90 update rate (heartbeat convention is 1 Hz). |
 | `OWNSHIP_UID` | — | CoT UID whose track becomes the Ownship Report (e.g. this device's gpstak/lincot UID). |
-| `OWNSHIP_LAT` / `OWNSHIP_LON` / `OWNSHIP_ALT_FT` | — | Static ownship position fallback. If no ownship is configured, GDLTAK sends heartbeat + traffic only. |
-| `CALLSIGN` | `GDLTAK` | Ownship callsign shown in the EFB. |
+| `OWNSHIP_LAT` / `OWNSHIP_LON` / `OWNSHIP_ALT_FT` | — | Static ownship position fallback. If no ownship is configured, GDLCOT sends heartbeat + traffic only. |
+| `CALLSIGN` | `GDLCOT` | Ownship callsign shown in the EFB. |
 
 `PYTAK_*` options (TLS client certs, etc.) are passed through to PyTAK,
 so any PyTAK-supported CoT source works, including TAK Server over TLS.
@@ -63,10 +63,10 @@ Notes:
 
 - GDL90 Traffic Reports carry **pressure** altitude, because that is what
   every other aircraft's transponder reports and what an EFB needs to compute
-  relative altitude. GDLTAK reads it from `<__adsb alt_baro="...">`, which
+  relative altitude. GDLCOT reads it from `<__adsb alt_baro="...">`, which
   adsbcot publishes from readsb.
 - When a source does not provide pressure altitude — a non-adsbcot feed, or a
-  target reporting `ground` — GDLTAK falls back to CoT's geometric `hae`. That
+  target reporting `ground` — GDLCOT falls back to CoT's geometric `hae`. That
   is approximate: geometric and pressure altitude differ with local pressure,
   routinely by hundreds of feet. Better than dropping the track, but it is a
   fallback, not the intent.
@@ -79,7 +79,7 @@ Notes:
 
 ## Software Suite
 
-GDLTAK is part of the [snstac](https://github.com/snstac) TAK gateway
+GDLCOT is part of the [snstac](https://github.com/snstac) TAK gateway
 family, built on [PyTAK](https://github.com/snstac/pytak) and
 pre-installed on [AryaOS](https://github.com/snstac/aryaos):
 [adsbcot](https://github.com/snstac/adsbcot) (aircraft via ADS-B),

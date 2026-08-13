@@ -1,6 +1,6 @@
-# gdltak.service from https://github.com/snstac/gdltak
+# gdlcot.service from https://github.com/snstac/gdlcot
 #
-# gdltak service for systemd
+# gdlcot service for systemd
 #
 # Copyright Sensors & Signals LLC https://www.snstac.com/
 #
@@ -16,19 +16,19 @@
 #
 
 [Unit]
-Description=GDLTAK: Display TAK air pictures in ForeFlight - CoT to GDL90 Gateway.
-Documentation=https://github.com/snstac/gdltak
+Description=GDLCOT: Display TAK air pictures in ForeFlight - CoT to GDL90 Gateway.
+Documentation=https://github.com/snstac/gdlcot
 Wants=network-online.target
 After=network-online.target
 
 [Service]
 Type=simple
-User=gdltak
+User=gdlcot
 EnvironmentFile=-/etc/aryaos/aryaos-config.txt
-EnvironmentFile=-/etc/default/gdltak
-ExecStart=/usr/bin/gdltak
-RuntimeDirectory=gdltak
-SyslogIdentifier=gdltak
+EnvironmentFile=-/etc/default/gdlcot
+ExecStart=/usr/bin/gdlcot
+RuntimeDirectory=gdlcot
+SyslogIdentifier=gdlcot
 Restart=on-failure
 RestartSec=5
 
