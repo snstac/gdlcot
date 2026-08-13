@@ -6,6 +6,10 @@ GDLCOT broadcasts the local **Cursor on Target (CoT)** air picture as
 It is the reverse of [adsbcot](https://github.com/snstac/adsbcot):
 CoT in, GDL90 out.
 
+GDLCOT 2.0.1 and later rebuild the PyTAK client in-process with bounded
+backoff when the CoT source is unavailable or local network policy is being
+replaced. Each attempt gets new queues, workers, and transports.
+
 GDLCOT subscribes to CoT (by default the AryaOS / ATAK **Mesh SA**
 multicast group), keeps a table of air tracks, and once a second emits
 GDL90 Heartbeat, Ownship and Traffic Report datagrams the way a stratux
