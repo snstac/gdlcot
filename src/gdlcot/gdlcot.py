@@ -39,7 +39,7 @@ import pytak
 
 from gdlcot import gdl90
 
-VERSION = "1.0.0"
+VERSION = "2.0.0"
 logger = logging.getLogger("gdlcot")
 
 DEFAULT_COT_URL = "udp+ro://239.2.3.1:6969"
