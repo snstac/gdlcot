@@ -4,8 +4,10 @@ Copyright Sensors & Signals LLC https://www.snstac.com/
 SPDX-License-Identifier: Apache-2.0
 """
 
+import asyncio
 import socket
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytak
@@ -252,6 +254,35 @@ def test_gdl90_sender_broadcast_scheme():
 def test_gdl90_sender_rejects_non_udp():
     with pytest.raises(ValueError):
         gdlcot.Gdl90Sender("tcp://127.0.0.1:4000")
+
+
+def test_cot_input_attempt_builds_fresh_transports(monkeypatch):
+    """Reconnect attempts must not reuse failed queues or sockets."""
+    config = {"COT_URL": "udp+ro://239.2.3.1:6969", "UPDATE_HZ": "1"}
+    tracks = object()
+    sender = object()
+    status = object()
+    clitool = MagicMock()
+    clitool.rx_queue = object()
+    clitool.tx_queue = object()
+    clitool.setup = AsyncMock()
+    clitool.run = AsyncMock()
+    cot_worker = object()
+    gdl_worker = object()
+
+    monkeypatch.setattr(gdlcot.pytak, "CLITool", MagicMock(return_value=clitool))
+    monkeypatch.setattr(gdlcot, "CotWorker", MagicMock(return_value=cot_worker))
+    monkeypatch.setattr(gdlcot, "Gdl90Worker", MagicMock(return_value=gdl_worker))
+
+    asyncio.run(gdlcot.run_cot_client(config, tracks, sender, status))
+
+    clitool.setup.assert_awaited_once_with()
+    gdlcot.CotWorker.assert_called_once_with(clitool.rx_queue, config, tracks, status)
+    gdlcot.Gdl90Worker.assert_called_once_with(
+        clitool.tx_queue, config, tracks, sender, status
+    )
+    clitool.add_tasks.assert_called_once_with({cot_worker, gdl_worker})
+    clitool.run.assert_awaited_once_with()
 
 
 # --- Pressure vs geometric altitude ---------------------------------------

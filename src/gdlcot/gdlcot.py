@@ -39,7 +39,7 @@ import pytak
 
 from gdlcot import gdl90
 
-VERSION = "2.0.0"
+VERSION = "2.0.1"
 logger = logging.getLogger("gdlcot")
 
 DEFAULT_COT_URL = "udp+ro://239.2.3.1:6969"
@@ -362,6 +362,19 @@ class Gdl90Worker(pytak.QueueWorker):
             await asyncio.sleep(period)
 
 
+async def run_cot_client(config, tracks, sender, status):
+    """Build and run one CoT input attempt with fresh PyTAK transports."""
+    clitool = pytak.CLITool(config)
+    await clitool.setup()
+    clitool.add_tasks(
+        {
+            CotWorker(clitool.rx_queue, config, tracks, status),
+            Gdl90Worker(clitool.tx_queue, config, tracks, sender, status),
+        }
+    )
+    await clitool.run()
+
+
 async def main():
     logging.basicConfig(
         level=os.environ.get("LOG_LEVEL", "INFO").upper(),
@@ -401,15 +414,10 @@ async def main():
     )
     status.write(force=True)
 
-    clitool = pytak.CLITool(config)
-    await clitool.setup()
-    clitool.add_tasks(
-        {
-            CotWorker(clitool.rx_queue, config, tracks, status),
-            Gdl90Worker(clitool.tx_queue, config, tracks, sender, status),
-        }
+    await pytak.supervise_with_reconnect(
+        config,
+        lambda: run_cot_client(config, tracks, sender, status),
     )
-    await clitool.run()
 
 
 def cli_main():
