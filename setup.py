@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Setup for GDLTAK."""
+"""Setup for GDLCOT."""
 
 from setuptools import setup
 

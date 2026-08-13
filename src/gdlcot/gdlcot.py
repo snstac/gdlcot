@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-GDLTAK: Display TAK air pictures in ForeFlight — CoT to GDL90 gateway.
+GDLCOT: Display TAK air pictures in ForeFlight — CoT to GDL90 gateway.
 
-GDLTAK subscribes to Cursor on Target (default COT_URL=udp+ro://239.2.3.1:6969,
+GDLCOT subscribes to Cursor on Target (default COT_URL=udp+ro://239.2.3.1:6969,
 the AryaOS / ATAK Mesh SA multicast group), maintains a table of air tracks,
 and broadcasts the picture as GDL90 over UDP (default
 GDL90_URL=udp+broadcast://255.255.255.255:4000, the stratux/ForeFlight
@@ -10,12 +10,12 @@ convention) so Electronic Flight Bag apps — ForeFlight, FlyQ, Garmin Pilot —
 display the same traffic that TAK sees. It is the reverse of adsbcot:
 CoT in, GDL90 out.
 
-Every 1/UPDATE_HZ seconds GDLTAK emits: a Heartbeat, an Ownship Report (from
+Every 1/UPDATE_HZ seconds GDLCOT emits: a Heartbeat, an Ownship Report (from
 the CoT track matching OWNSHIP_UID, or static OWNSHIP_LAT/OWNSHIP_LON), an
 Ownship Geometric Altitude, and one Traffic Report per track fresher than
 STALE_SECS.
 
-Configuration is PyTAK-style via /etc/default/gdltak (systemd EnvironmentFile)
+Configuration is PyTAK-style via /etc/default/gdlcot (systemd EnvironmentFile)
 or the environment: COT_URL, GDL90_URL, STALE_SECS, OWNSHIP_UID, OWNSHIP_LAT,
 OWNSHIP_LON, OWNSHIP_ALT_FT, CALLSIGN, UPDATE_HZ.
 
@@ -37,16 +37,16 @@ import zlib
 
 import pytak
 
-from gdltak import gdl90
+from gdlcot import gdl90
 
-VERSION = "1.0.1"
-logger = logging.getLogger("gdltak")
+VERSION = "1.0.0"
+logger = logging.getLogger("gdlcot")
 
 DEFAULT_COT_URL = "udp+ro://239.2.3.1:6969"
 DEFAULT_GDL90_URL = "udp+broadcast://255.255.255.255:4000"
 DEFAULT_STALE_SECS = "60"
 DEFAULT_UPDATE_HZ = "1"
-DEFAULT_CALLSIGN = "GDLTAK"
+DEFAULT_CALLSIGN = "GDLCOT"
 
 M_PER_SEC_TO_KNOTS = 1.943844
 METERS_TO_FEET = 3.28084
@@ -262,12 +262,20 @@ def track_to_report(track: dict, msg_id: int = gdl90.MSG_TRAFFIC) -> bytes:
 class CotWorker(pytak.QueueWorker):
     """Drain CoT events from the PyTAK rx_queue into the track table."""
 
-    def __init__(self, queue, config, tracks):
+    def __init__(self, queue, config, tracks, status):
         super().__init__(queue, config)
         self.tracks = tracks
+        self.status = status
 
     async def handle_data(self, data) -> None:
         if self.tracks.update_from_cot(data):
+            self.status.count("rx")
+            self.status.set_input(
+                last_observation=time.time(),
+                total=self.status.as_dict()["counters"].get("rx", 0),
+                tracked=len(self.tracks.tracks),
+            )
+            self.status.set_health("ok", "CoT air picture active")
             logger.debug("track update: %d tracks", len(self.tracks.tracks))
 
     async def run(self, _=-1):
@@ -280,10 +288,11 @@ class CotWorker(pytak.QueueWorker):
 class Gdl90Worker(pytak.QueueWorker):
     """Emit the GDL90 picture (heartbeat/ownship/traffic) at UPDATE_HZ."""
 
-    def __init__(self, queue, config, tracks, sender):
+    def __init__(self, queue, config, tracks, sender, status):
         super().__init__(queue, config)
         self.tracks = tracks
         self.sender = sender
+        self.status = status
 
     def ownship_track(self):
         """Ownship state: live CoT track for OWNSHIP_UID, else static config."""
@@ -329,6 +338,15 @@ class Gdl90Worker(pytak.QueueWorker):
                 continue
             self.sender.send(track_to_report(track))
             sent += 1
+        self.status.count("tx", sent)
+        self.status.set_output(
+            "connected",
+            last_success=now_wall,
+            total=self.status.as_dict()["counters"].get("tx", 0),
+            destination=f"udp://{self.sender.addr[0]}:{self.sender.addr[1]}",
+        )
+        self.status.set(tracked=len(self.tracks.tracks))
+        self.status.write()
         return sent
 
     async def run(self, _=-1):
@@ -347,12 +365,12 @@ class Gdl90Worker(pytak.QueueWorker):
 async def main():
     logging.basicConfig(
         level=os.environ.get("LOG_LEVEL", "INFO").upper(),
-        format="%(asctime)s gdltak %(levelname)s %(message)s",
+        format="%(asctime)s gdlcot %(levelname)s %(message)s",
     )
     parser = configparser.ConfigParser()
     parser.read_dict(
         {
-            "gdltak": {
+            "gdlcot": {
                 "COT_URL": conf("COT_URL", DEFAULT_COT_URL),
                 "GDL90_URL": conf("GDL90_URL", DEFAULT_GDL90_URL),
                 "STALE_SECS": conf("STALE_SECS", DEFAULT_STALE_SECS),
@@ -366,23 +384,29 @@ async def main():
             }
         }
     )
-    config = parser["gdltak"]
+    config = parser["gdlcot"]
     # Pass through PYTAK_* (TLS etc.) from the environment.
     for key, val in os.environ.items():
         if key.startswith("PYTAK_"):
             config[key] = val
 
-    tracks = TrackTable(
-        float(config.get("STALE_SECS")), config.get("OWNSHIP_UID", "")
-    )
+    tracks = TrackTable(float(config.get("STALE_SECS")), config.get("OWNSHIP_UID", ""))
     sender = Gdl90Sender(config.get("GDL90_URL"))
+    status = pytak.StatusWriter("gdlcot", version=VERSION)
+    status.set_health("degraded", "waiting for CoT air tracks")
+    status.set_input(connection="connected")
+    status.set_output(
+        "connected",
+        destination=f"udp://{sender.addr[0]}:{sender.addr[1]}",
+    )
+    status.write(force=True)
 
     clitool = pytak.CLITool(config)
     await clitool.setup()
     clitool.add_tasks(
         {
-            CotWorker(clitool.rx_queue, config, tracks),
-            Gdl90Worker(clitool.tx_queue, config, tracks, sender),
+            CotWorker(clitool.rx_queue, config, tracks, status),
+            Gdl90Worker(clitool.tx_queue, config, tracks, sender, status),
         }
     )
     await clitool.run()

@@ -1,4 +1,4 @@
-include README.md LICENSE src/gdltak/VERSION
+include README.md LICENSE src/gdlcot/VERSION
 graft src
 global-exclude __pycache__/*
 global-exclude *.py[cod]

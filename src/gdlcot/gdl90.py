@@ -258,9 +258,7 @@ def ownship_report(lat: float, lon: float, **kwargs) -> bytes:
     return traffic_report(lat, lon, msg_id=MSG_OWNSHIP, **kwargs)
 
 
-def ownship_geo_altitude(
-    geo_alt_ft: float, vertical_metrics: int = 0x7FFF
-) -> bytes:
+def ownship_geo_altitude(geo_alt_ft: float, vertical_metrics: int = 0x7FFF) -> bytes:
     """Ownship Geometric Altitude (ID 0x0B, spec §3.8), unframed.
 
     Altitude is signed 16-bit in 5-ft units; vertical metrics 0x7FFF means

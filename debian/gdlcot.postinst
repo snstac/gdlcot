@@ -1,13 +1,21 @@
 #!/bin/sh
-# gdltak.postinst from https://github.com/snstac/gdltak
+# gdlcot.postinst from https://github.com/snstac/gdlcot
 # Copyright Sensors & Signals LLC https://www.snstac.com/
 # SPDX-License-Identifier: Apache-2.0
 set -e
 
-SERVER_HOME=/run/gdltak
-SERVER_USER=gdltak
+systemctl disable --now gdltak.service >/dev/null 2>&1 || true
+if [ -f /etc/default/gdltak ]; then
+  sed 's/GDLTAK/GDLCOT/g; s/gdltak/gdlcot/g' \
+    /etc/default/gdltak > /etc/default/gdlcot
+  chmod 0644 /etc/default/gdlcot
+  mv /etc/default/gdltak /etc/default/gdltak.migrated
+fi
+
+SERVER_HOME=/run/gdlcot
+SERVER_USER=gdlcot
 SERVER_NAME="CoT to GDL90 Gateway System User"
-SERVER_GROUP=gdltak
+SERVER_GROUP=gdlcot
 
 # Create system group/user so the service does not run as root.
 if ! getent group "$SERVER_GROUP" >/dev/null; then
@@ -28,7 +36,7 @@ if command -v systemctl >/dev/null 2>&1; then
   systemctl daemon-reload || true
 fi
 
-# gdltak.service ships disabled; opt in with:
-#   sudo systemctl enable --now gdltak
+# gdlcot.service ships disabled; opt in with:
+#   sudo systemctl enable --now gdlcot
 
 exit 0
